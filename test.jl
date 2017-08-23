@@ -9,13 +9,20 @@ macro blocks(e)
   end
 end
 
-a = AsyncBuffer()
+a = Buffer()
 write(a, "a")
 @test read(a, Char) == 'a'
 @blocks read(a, Char)
 @blocks eof(a)
 
-a = AsyncBuffer()
-t = @schedule eof(a) == true
+a=Buffer()
+write(a, "abc")
+@test readavailable(a) == b"abc"
+@blocks eof(a)
 close(a)
-@test t.result == true
+@test eof(a)
+
+take = asyncpipe(IOBuffer("abc"), Take(2))
+@test !eof(take)
+@test read(take) == b"ab"
+@test eof(take)
