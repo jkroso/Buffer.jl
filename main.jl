@@ -1,7 +1,7 @@
 abstract type AsyncBuffer <: IO end
 
 mutable struct Buffer <: AsyncBuffer
-  ptr::UInt
+  ptr::Int
   open::Bool
   onwrite::Condition
   data::Vector{UInt8}
@@ -10,8 +10,8 @@ end
 Buffer() = Buffer(0, true, Condition(), UInt8[])
 
 mutable struct Take <: AsyncBuffer
-  limit::UInt
-  ptr::UInt
+  limit::Int
+  ptr::Int
   open::Bool
   onwrite::Condition
   data::Vector{UInt8}
@@ -80,6 +80,8 @@ Base.read(io::AsyncBuffer, ::Type{UInt8}) = begin
   io.ptr += 1
   io.data[io.ptr]
 end
+
+Base.skip(io::AsyncBuffer, n) = io.ptr = max(0, min(io.ptr + n, length(io.data)))
 
 "Transfer data directly from one stream to another"
 function asyncpipe(from::IO, to::IO)

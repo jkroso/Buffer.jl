@@ -26,3 +26,7 @@ take = asyncpipe(IOBuffer("abc"), Take(2))
 @test !eof(take)
 @test read(take) == b"ab"
 @test eof(take)
+skip(take, -1)
+@test !eof(take)
+@test read(take) == b"b"
+@test eof(take)
