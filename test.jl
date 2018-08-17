@@ -1,9 +1,9 @@
 include("main.jl")
-using Base.Test
+using Test
 
 macro blocks(e)
   quote
-    t = @schedule $(esc(e))
+    t = @async $(esc(e))
     sleep(0)
     @test t.state == :runnable
   end

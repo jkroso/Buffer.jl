@@ -86,7 +86,7 @@ Base.skip(io::AsyncBuffer, n) = io.ptr = max(0, min(io.ptr + n, length(io.data))
 "Transfer data directly from one stream to another"
 function asyncpipe(from::IO, to::IO)
   main_task = current_task()
-  @schedule try
+  @async try
     write(to, from)
   catch e
     Base.throwto(main_task, e)
