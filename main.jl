@@ -34,16 +34,16 @@ Base.write(io::AsyncBuffer, b::Vector) = begin
 end
 
 Base.isopen(io::AsyncBuffer) = io.open
-Base.eof(io::Buffer) = nb_available(io) > 0 ? false : isopen(io) ? wait(io.onwrite) : true
-Base.eof(io::Take) = nb_available(io) > 0 ? false : isopen(io) && io.ptr < io.limit ? wait(io.onwrite) : true
+Base.eof(io::Buffer) = bytesavailable(io) > 0 ? false : isopen(io) ? wait(io.onwrite) : true
+Base.eof(io::Take) = bytesavailable(io) > 0 ? false : isopen(io) && io.ptr < io.limit ? wait(io.onwrite) : true
 Base.close(io::AsyncBuffer) = (io.open = false; notify(io.onwrite, true); nothing)
-Base.nb_available(io::Buffer) = length(io.data) - io.ptr
-Base.nb_available(io::Take) = max(0, min(io.limit, length(io.data)) - io.ptr)
+Base.bytesavailable(io::Buffer) = length(io.data) - io.ptr
+Base.bytesavailable(io::Take) = max(0, min(io.limit, length(io.data)) - io.ptr)
 
 Base.readavailable(io::AsyncBuffer) = begin
-  nb_available(io) == 0 && wait(io.onwrite)
+  bytesavailable(io) == 0 && wait(io.onwrite)
   ptr = io.ptr
-  io.ptr = ptr + nb_available(io)
+  io.ptr = ptr + bytesavailable(io)
   io.data[ptr+1:io.ptr]
 end
 
@@ -57,7 +57,7 @@ Base.read(io::AsyncBuffer) = begin
 end
 
 Base.read(io::Take) = begin
-  while isopen(io) && (io.ptr + nb_available(io)) < io.limit
+  while isopen(io) && (io.ptr + bytesavailable(io)) < io.limit
     wait(io.onwrite)
   end
   start = io.ptr + 1
@@ -66,10 +66,10 @@ Base.read(io::Take) = begin
 end
 
 Base.read(io::AsyncBuffer, n::Integer) = begin
-  while isopen(io) && nb_available(io) < n
+  while isopen(io) && bytesavailable(io) < n
     wait(io.onwrite)
   end
-  @assert nb_available(io) >= n
+  @assert bytesavailable(io) >= n
   ptr = io.ptr
   io.ptr += n
   io.data[ptr+1:io.ptr]
