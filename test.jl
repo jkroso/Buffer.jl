@@ -1,5 +1,5 @@
-include("main.jl")
-using Test
+#! jest
+@require "." Buffer asyncpipe Take
 
 macro blocks(e)
   quote
@@ -15,12 +15,28 @@ write(a, "a")
 @blocks read(a, Char)
 @blocks eof(a)
 
-a=Buffer()
-write(a, "abc")
-@test readavailable(a) == b"abc"
-@blocks eof(a)
-close(a)
-@test eof(a)
+testset("eof when written to then closed") do
+  a = Buffer()
+  t = @async eof(a)
+  sleep(0)
+  write(a, UInt8('a'))
+  wait(t)
+  @test t.result == false
+  close(a)
+  @test eof(a) == false
+  @test isopen(a) == false
+  @test read(a) == UInt8['a']
+  @test eof(a) == true
+end
+
+testset("eof when closed immediatly after") do
+  a = Buffer()
+  t = @async eof(a)
+  sleep(0)
+  close(a)
+  wait(t)
+  @test t.result == true
+end
 
 take = asyncpipe(IOBuffer("abc"), Take(2))
 @test !eof(take)

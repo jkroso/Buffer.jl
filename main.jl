@@ -22,7 +22,7 @@ Take(n) = Take(n, 0, true, Condition(), UInt8[])
 Base.write(io::AsyncBuffer, b::UInt8) = begin
   @assert io.open
   push!(io.data, b)
-  notify(io.onwrite, true)
+  notify(io.onwrite, false)
   1
 end
 
