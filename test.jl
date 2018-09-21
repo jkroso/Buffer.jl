@@ -1,5 +1,5 @@
 #! jest
-@require "." Buffer asyncpipe Take
+@require "." Buffer asyncpipe Take transform
 
 macro blocks(e)
   quote
@@ -46,3 +46,13 @@ skip(take, -1)
 @test !eof(take)
 @test read(take) == b"b"
 @test eof(take)
+
+testset("transform") do
+  in = IOBuffer("abc")
+  out = transform(in) do in, out
+    while !eof(in)
+      write(out, readavailable(in))
+    end
+  end
+  @test read(out) == b"abc"
+end
