@@ -47,7 +47,7 @@ skip(take, -1)
 @test read(take) == b"b"
 @test eof(take)
 
-testset("transform") do
+testset("transform(fn, stream)") do
   in = IOBuffer("abc")
   out = transform(in) do in, out
     while !eof(in)
@@ -55,4 +55,18 @@ testset("transform") do
     end
   end
   @test read(out) == b"abc"
+end
+
+testset("transform(fn, fn, stream)") do
+  identity(in, out) = begin
+    while !eof(in)
+      write(out, readavailable(in))
+    end
+  end
+  s = transform(identity, identity, Buffer())
+  write(s, b"abc")
+  @test isopen(s)
+  close(s)
+  @test !isopen(s)
+  @test read(s) == b"abc"
 end

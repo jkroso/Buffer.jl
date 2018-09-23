@@ -112,8 +112,7 @@ transform(IOBuffer("abc")) do in, out
 end
 ```
 """
-transform(fn, stream) = begin
-  out = Buffer()
+transform(fn, stream; out=Buffer()) = begin
   main_task = current_task()
   @async try
     fn(stream, out)
@@ -124,3 +123,27 @@ transform(fn, stream) = begin
   end
   out
 end
+
+"""
+Wrap a stream such that both its input and output sides can be transformed
+"""
+transform(in_transform, out_transform, stream) = begin
+  duplex = Duplex()
+  transform(in_transform, duplex.in, out=stream)
+  transform(out_transform, stream, out=duplex.out)
+  duplex
+end
+
+struct Duplex <: IO
+  in::Buffer
+  out::Buffer
+end
+Duplex() = Duplex(Buffer(), Buffer())
+Base.write(d::Duplex, data::Union{Vector,Char,UInt8,Base.CodeUnits{UInt8,String}}) = write(d.in, data)
+Base.read(d::Duplex, T) = read(d.out, T)
+Base.read(d::Duplex) = read(d.out)
+Base.bytesavailable(d::Duplex) = bytesavailable(d.out)
+Base.readavailable(d::Duplex) = readavailable(d.out)
+Base.isopen(d::Duplex) = isopen(d.in)
+Base.close(d::Duplex) = close(d.in)
+Base.eof(d::Duplex) = eof(d.out)
