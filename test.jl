@@ -1,5 +1,5 @@
 #! jest
-@require "." Buffer asyncpipe Take transform
+@require "." Buffer pipe Take transform
 
 macro blocks(e)
   quote
@@ -38,7 +38,7 @@ testset("eof when closed immediatly after") do
   @test t.result == true
 end
 
-take = asyncpipe(IOBuffer("abc"), Take(2))
+take = pipe(IOBuffer("abc"), Take(2))
 @test !eof(take)
 @test read(take) == b"ab"
 @test eof(take)

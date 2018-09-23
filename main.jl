@@ -87,17 +87,8 @@ Base.skip(io::AsyncBuffer, n) = io.ptr = max(0, min(io.ptr + n, length(io.data))
 Write all data from stream `a` onto stream `b` then close stream `b`. Presumably
 stream `b` will be transforming the data that's written to it
 """
-function asyncpipe(from::IO, to::IO)
-  main_task = current_task()
-  @async try
-    write(to, from)
-  catch e
-    Base.throwto(main_task, e)
-  finally
-    close(to)
-  end
-  to
-end
+pipe(from::IO, to::IO) = transform(identity_transform, from, out=to)
+identity_transform(in, out) = write(out, in)
 
 """
 Produces a new stream and passes it to `fn`. Which will read data from the input
