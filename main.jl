@@ -130,8 +130,10 @@ struct Duplex <: IO
   out::Buffer
 end
 Duplex() = Duplex(Buffer(), Buffer())
-Base.write(d::Duplex, data::Union{Vector,Char,UInt8,Base.CodeUnits{UInt8,String}}) = write(d.in, data)
-Base.read(d::Duplex, T) = read(d.out, T)
+Base.write(d::Duplex, data::Vector{UInt8}) = write(d.in, data)
+Base.write(d::Duplex, data::UInt8) = write(d.in, data)
+Base.read(d::Duplex, ::Type{UInt8}) = read(d.out, UInt8)
+Base.read(d::Duplex, i::Integer) = read(d.out, i)
 Base.read(d::Duplex) = read(d.out)
 Base.bytesavailable(d::Duplex) = bytesavailable(d.out)
 Base.readavailable(d::Duplex) = readavailable(d.out)
