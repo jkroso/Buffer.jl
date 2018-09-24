@@ -140,3 +140,30 @@ Base.readavailable(d::Duplex) = readavailable(d.out)
 Base.isopen(d::Duplex) = isopen(d.in)
 Base.close(d::Duplex) = close(d.in)
 Base.eof(d::Duplex) = eof(d.out)
+
+"""
+Like SubString but for IOs. And obviously they are readonly
+"""
+mutable struct SubStream <: IO
+  stream::IO
+  bytesleft::Int
+end
+
+Base.read(io::SubStream, n::Integer) = begin
+  @assert n <= io.bytesleft
+  io.bytesleft -= n
+  read(io.stream, n)
+end
+Base.read(io::SubStream, ::Type{UInt8}) = begin
+  @assert io.bytesleft > 0
+  io.bytesleft -= 1
+  read(io.stream, UInt8)
+end
+Base.read(io::SubStream) = read(io, io.bytesleft)
+Base.bytesavailable(io::SubStream) = min(bytesavailable(io.stream), io.bytesleft)
+Base.isopen(io::SubStream) = isopen(io.stream)
+Base.close(io::SubStream) = close(io.stream)
+Base.eof(io::SubStream) = io.bytesleft <= 0
+Base.write(io::SubStream) = error("SubStreams are readonly")
+Base.readavailable(io::SubStream) =
+  bytesavailable(io) > 0 ? read(io, bytesavailable(io)) : read(io, 1)
