@@ -62,6 +62,15 @@ testset("marks") do
   @test read(a) == UInt8[('2':'9')...]
 end
 
+testset("pipe") do
+  c=Buffer(UInt8['c'])
+  b=Buffer(UInt8['b'])
+  a=Buffer(UInt8['a'])
+  d=Buffer()
+  close(c)
+  @test read(pipe(c,b,a,d)) == b"abc"
+end
+
 @use "./ReadBuffer.jl" ReadBuffer
 
 testset("ReadBuffer") do

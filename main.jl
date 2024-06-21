@@ -8,7 +8,8 @@ mutable struct Buffer <: AbstractBuffer
   data::Vector{UInt8}
 end
 
-Buffer() = Buffer(0, true, Condition(), -1, UInt8[])
+Buffer() = Buffer(UInt8[])
+Buffer(buf::Vector{UInt8}) = Buffer(0, true, Condition(), -1, buf)
 
 Base.write(io::AbstractBuffer, b::UInt8) = begin
   @assert io.open
@@ -76,4 +77,5 @@ pipe(from::IO, to::IO, rest...) = foldl(pipe, rest, init=pipe(from, to))
 pipe(from::IO, to::IO) = begin
   write(to, from)
   close(to)
+  to
 end
