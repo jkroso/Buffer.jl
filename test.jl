@@ -1,5 +1,5 @@
-#! jest
-@require "." Buffer pipe Take transform SubStream
+@use "github.com/jkroso/Rutherford.jl/test" @test testset
+@use "." Buffer pipe Take transform SubStream
 
 macro blocks(e)
   quote
@@ -85,4 +85,25 @@ testset("SubStream") do
   @test readavailable(sub) == b"ef"
   @test eof(sub) == true
   @test bytesavailable(sub) == 0
+end
+
+@use "./ReadBuffer.jl" ReadBuffer
+
+testset("ReadBuffer") do
+  input = PipeBuffer()
+  write(input, "abcdefg")
+  rb = ReadBuffer(input)
+  @test !ismarked(rb)
+  @test read(rb, 2) == b"ab"
+  mark(rb)
+  @test ismarked(rb)
+  @test read(rb, Char) == 'c'
+  @test read(rb, 2) == b"de"
+  reset(rb)
+  @test !ismarked(rb)
+  @test read(rb, 3) == b"cde"
+  skip(rb, -3)
+  @test read(rb, 3) == b"cde"
+  write(rb.io, "hi")
+  @test read(rb) == b"fghi"
 end
