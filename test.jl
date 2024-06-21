@@ -1,5 +1,5 @@
 @use "github.com/jkroso/Rutherford.jl/test" @test testset
-@use "." Buffer pipe Take transform SubStream
+@use "." Buffer pipe
 
 macro blocks(e)
   quote
@@ -40,51 +40,26 @@ testset("eof when closed immediatly after") do
   @test t.result == true
 end
 
-testset("Take") do
-  take = pipe(IOBuffer("abc"), Take(2))
-  @test !eof(take)
-  @test read(take) == b"ab"
-  @test eof(take)
-  skip(take, -1)
-  @test !eof(take)
-  @test read(take) == b"b"
-  @test eof(take)
-end
-
-testset("transform(fn, stream)") do
-  in = IOBuffer("abc")
-  out = transform(in) do in, out
-    while !eof(in)
-      write(out, readavailable(in))
-    end
-  end
-  @test read(out) == b"abc"
-end
-
-testset("transform(fn, fn, stream)") do
-  identity(in, out) = begin
-    while !eof(in)
-      write(out, readavailable(in))
-    end
-  end
-  s = transform(identity, identity, Buffer())
-  write(s, b"abc")
-  @test isopen(s)
-  close(s)
-  @test !isopen(s)
-  @test read(s) == b"abc"
-end
-
-testset("SubStream") do
-  in = IOBuffer("abcdefg")
-  sub = SubStream(in, 3)
-  @test read(sub) == b"abc"
-  @test eof(sub) == true
-  sub = SubStream(in, 3)
-  @test read(sub, UInt8) == UInt8('d')
-  @test readavailable(sub) == b"ef"
-  @test eof(sub) == true
-  @test bytesavailable(sub) == 0
+testset("marks") do
+  a = Buffer()
+  write(a, ('a':'z')...)
+  @test read(a, Char) == 'a'
+  @test position(a) == 1
+  mark(a)
+  @test read(a, 3) == b"bcd"
+  reset(a)
+  @test read(a, 4) == b"bcde"
+  skip(a, -2)
+  @test read(a, 2) == b"de"
+  skip(a, 2)
+  @test read(a, 2) == b"hi"
+  seek(a, 1)
+  @test read(a, Char) == 'b'
+  @test readavailable(a) == UInt8[('c':'z')...]
+  write(a, ('1':'9')...)
+  @test read(a, Char) == '1'
+  close(a)
+  @test read(a) == UInt8[('2':'9')...]
 end
 
 @use "./ReadBuffer.jl" ReadBuffer

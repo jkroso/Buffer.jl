@@ -1,169 +1,79 @@
-abstract type AsyncBuffer <: IO end
+abstract type AbstractBuffer <: IO end
 
-mutable struct Buffer <: AsyncBuffer
+mutable struct Buffer <: AbstractBuffer
   ptr::Int
   open::Bool
   onwrite::Condition
+  mark::Int
   data::Vector{UInt8}
 end
 
-Buffer() = Buffer(0, true, Condition(), UInt8[])
+Buffer() = Buffer(0, true, Condition(), -1, UInt8[])
 
-mutable struct Take <: AsyncBuffer
-  limit::Int
-  ptr::Int
-  open::Bool
-  onwrite::Condition
-  data::Vector{UInt8}
-end
-
-Take(n) = Take(n, 0, true, Condition(), UInt8[])
-
-Base.write(io::AsyncBuffer, b::UInt8) = begin
+Base.write(io::AbstractBuffer, b::UInt8) = begin
   @assert io.open
   push!(io.data, b)
   notify(io.onwrite, false)
   1
 end
 
-Base.write(io::AsyncBuffer, b::Vector) = begin
+Base.write(io::AbstractBuffer, b::Vector{UInt8}) = begin
   @assert io.open
   append!(io.data, b)
   notify(io.onwrite, false)
   length(b)
 end
 
-Base.isopen(io::AsyncBuffer) = io.open
+Base.isopen(io::AbstractBuffer) = io.open
 Base.eof(io::Buffer) = bytesavailable(io) > 0 ? false : isopen(io) ? wait(io.onwrite) : true
-Base.eof(io::Take) = bytesavailable(io) > 0 ? false : isopen(io) && io.ptr < io.limit ? wait(io.onwrite) : true
-Base.close(io::AsyncBuffer) = (io.open = false; notify(io.onwrite, true); nothing)
+Base.close(io::AbstractBuffer) = (io.open = false; notify(io.onwrite, true); nothing)
 Base.bytesavailable(io::Buffer) = length(io.data) - io.ptr
-Base.bytesavailable(io::Take) = max(0, min(io.limit, length(io.data)) - io.ptr)
 
-Base.readavailable(io::AsyncBuffer) = begin
-  bytesavailable(io) == 0 && wait(io.onwrite)
+Base.readavailable(io::AbstractBuffer) = begin
   ptr = io.ptr
-  io.ptr = ptr + bytesavailable(io)
-  io.data[ptr+1:io.ptr]
+  bytes = ptr > 0 ? @view(io.data[ptr+1:end]) : io.data
+  ismarked(io) || clear!(io)
+  bytes
 end
 
-Base.read(io::AsyncBuffer) = begin
-  while isopen(io)
-    wait(io.onwrite)
-  end
-  start = io.ptr + 1
+clear!(io::AbstractBuffer) = begin
+  io.data = UInt8[]
+  io.ptr = 0
+end
+
+Base.read(io::AbstractBuffer) = begin
+  while isopen(io); wait(io.onwrite) end
+  bytes = @view io.data[io.ptr+1:end]
   io.ptr = length(io.data)
-  io.data[start:end]
+  bytes
 end
 
-Base.read(io::Take) = begin
-  while isopen(io) && (io.ptr + bytesavailable(io)) < io.limit
-    wait(io.onwrite)
-  end
-  start = io.ptr + 1
-  io.ptr = io.limit
-  io.data[start:io.limit]
-end
-
-Base.read(io::AsyncBuffer, n::Integer) = begin
-  while isopen(io) && bytesavailable(io) < n
-    wait(io.onwrite)
-  end
+Base.read(io::AbstractBuffer, n::Integer) = begin
+  while isopen(io) && bytesavailable(io) < n; wait(io.onwrite) end
   @assert bytesavailable(io) >= n
   ptr = io.ptr
   io.ptr += n
-  io.data[ptr+1:io.ptr]
+  @view io.data[ptr+1:io.ptr]
 end
 
-Base.read(io::AsyncBuffer, ::Type{UInt8}) = begin
+Base.read(io::AbstractBuffer, ::Type{UInt8}) = begin
   @assert !eof(io)
-  io.ptr += 1
-  io.data[io.ptr]
+  @inbounds io.data[io.ptr+=1]
 end
 
-Base.skip(io::AsyncBuffer, n) = io.ptr = max(0, min(io.ptr + n, length(io.data)))
-
-"""
-Write all data from stream `a` onto stream `b` then close stream `b`. Presumably
-stream `b` will be transforming the data that's written to it
-"""
-pipe(from::IO, to::IO) = transform(identity_transform, from, out=to)
-identity_transform(in, out) = write(out, in)
-
-"""
-Produces a new stream and passes it to `fn`. Which will read data from the input
-stream and write it to the newly created output stream
-
-```
-# The identity transform but with logging
-transform(IOBuffer("abc")) do in, out
-  while !eof(in)
-    write(out, @show(readavailable(in)))
-  end
-end
-```
-"""
-transform(fn, stream; out=Buffer()) = begin
-  main_task = current_task()
-  @async try
-    fn(stream, out)
-  catch e
-    Base.throwto(main_task, e)
-  finally
-    close(out)
-  end
-  out
+Base.position(io::AbstractBuffer) = io.ptr
+Base.skip(io::AbstractBuffer, n::Integer) = seek(io, position(io) + n)
+Base.seek(io::AbstractBuffer, pos::Integer) = begin
+  @assert pos >= 0 "Can't seek back that far"
+  while !eof(io) && pos > length(io.data); wait(io.onwrite) end
+  @assert pos <= length(io.data) "Can't seek forward that far"
+  io.ptr = pos
+  io
 end
 
-"""
-Wrap a stream such that both its input and output sides can be transformed
-"""
-transform(in_transform, out_transform, stream) = begin
-  duplex = Duplex()
-  transform(in_transform, duplex.in, out=stream)
-  transform(out_transform, stream, out=duplex.out)
-  duplex
+"Pass data down a chain of IO's. Closing each one on completion of it's input"
+pipe(from::IO, to::IO, rest...) = foldl(pipe, rest, init=pipe(from, to))
+pipe(from::IO, to::IO) = begin
+  write(to, from)
+  close(to)
 end
-
-struct Duplex <: IO
-  in::Buffer
-  out::Buffer
-end
-Duplex() = Duplex(Buffer(), Buffer())
-Base.write(d::Duplex, data::Vector{UInt8}) = write(d.in, data)
-Base.write(d::Duplex, data::UInt8) = write(d.in, data)
-Base.read(d::Duplex, ::Type{UInt8}) = read(d.out, UInt8)
-Base.read(d::Duplex, i::Integer) = read(d.out, i)
-Base.read(d::Duplex) = read(d.out)
-Base.bytesavailable(d::Duplex) = bytesavailable(d.out)
-Base.readavailable(d::Duplex) = readavailable(d.out)
-Base.isopen(d::Duplex) = isopen(d.in)
-Base.close(d::Duplex) = close(d.in)
-Base.eof(d::Duplex) = eof(d.out)
-
-"""
-Like SubString but for IOs. And obviously they are readonly
-"""
-mutable struct SubStream <: IO
-  stream::IO
-  bytesleft::Int
-end
-
-Base.read(io::SubStream, n::Integer) = begin
-  @assert n <= io.bytesleft
-  io.bytesleft -= n
-  read(io.stream, n)
-end
-Base.read(io::SubStream, ::Type{UInt8}) = begin
-  @assert io.bytesleft > 0
-  io.bytesleft -= 1
-  read(io.stream, UInt8)
-end
-Base.read(io::SubStream) = read(io, io.bytesleft)
-Base.bytesavailable(io::SubStream) = min(bytesavailable(io.stream), io.bytesleft)
-Base.isopen(io::SubStream) = isopen(io.stream)
-Base.close(io::SubStream) = close(io.stream)
-Base.eof(io::SubStream) = io.bytesleft <= 0
-Base.write(io::SubStream) = error("SubStreams are readonly")
-Base.readavailable(io::SubStream) =
-  bytesavailable(io) > 0 ? read(io, bytesavailable(io)) : read(io, 1)
