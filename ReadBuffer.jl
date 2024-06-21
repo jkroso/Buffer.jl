@@ -88,3 +88,7 @@ Base.seek(io::ReadBuffer, pos::Integer) = begin
   io
 end
 Base.skip(io::ReadBuffer, offset::Integer) = seek(io, position(io) + offset)
+
+"Wraps an input in a Buffer so that consumers can use the full IO interface"
+buffer(io::T) where T<:IO = hasmethod(position, Tuple{T}) ? io : ReadBuffer(io)
+buffer(x) = IOBuffer(x)
