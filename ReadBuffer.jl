@@ -13,16 +13,31 @@ Base.read(io::AbstractReadBuffer, ::Type{UInt8}) = begin
   @inbounds io.data[io.i+=1]
 end
 
-pull!(io::ReadBuffer) = begin
-  bytes = eof(io.io) || readavailable(io.io)
-  @assert bytes != true "Attempted to read from an empty IO"
-  if ismarked(io)
+pull!(io::AbstractReadBuffer) = begin
+  @assert !eof(io.io) "Attempted to read from an empty IO"
+  bytes = pull(io)
+  if ismarked(io) || io.i < length(io.data)
     append!(io.data, bytes)
   else
     io.data = bytes
     io.i = 0
   end
+  length(bytes)
 end
+
+buffer!(io::AbstractReadBuffer) = begin
+  @assert !eof(io.io) "Attempted to read from an empty IO"
+  bytes = pull(io)
+  append!(io.data, bytes)
+  length(bytes)
+end
+
+"""
+Read data from the input stream and optionally transform it before returning it.
+
+This is likely the only method you will need to define for any subtype of `AbstractReadBuffer`
+"""
+pull(io::ReadBuffer) = readavailable(io.io)
 
 Base.readavailable(io::AbstractReadBuffer) = begin
   if io.i < length(io.data)
@@ -36,30 +51,24 @@ end
 
 Base.read(io::AbstractReadBuffer, n::Integer) = begin
   rem = length(io.data) - io.i
-  if rem >= n
-    bytes = @view io.data[io.i+1:io.i+n]
-    io.i += n
-    bytes
-  else
-    out = IOBuffer(maxsize=n)
-    len = length(io.data)
-    n -= write(out, @view io.data[io.i+1:len])
-    io.i = len
-    while n > 0
-      n -= write(out, read(io.io, n))
-    end
-    take!(out)
-  end
+  while rem < n; rem += pull!(io) end
+  bytes = @view io.data[io.i+1:io.i+n]
+  io.i += n
+  bytes
 end
 
 Base.read(io::AbstractReadBuffer) = begin
-  rem = length(io.data) - io.i
-  rem <= 0 && return eof(io.io) ? UInt8[] : read(io.io)
-  eof(io.io) || append!(io.data, read(io.io))
+  while !eof(io.io); buffer!(io) end
   len = length(io.data)
   bytes = @view io.data[io.i+1:len]
   io.i = len
   bytes
+end
+
+Base.read(io::ReadBuffer) = begin
+  rem = length(io.data) - io.i
+  rem <= 0 && return eof(io.io) ? UInt8[] : read(io.io)
+  invoke(read, Tuple{AbstractReadBuffer}, io)
 end
 
 Base.isopen(io::AbstractReadBuffer) = isopen(io.io)
@@ -67,7 +76,8 @@ Base.isreadable(io::AbstractReadBuffer) = isreadable(io.io)
 Base.iswritable(io::AbstractReadBuffer) = iswritable(io.io)
 Base.close(io::AbstractReadBuffer) = close(io.io)
 Base.eof(io::AbstractReadBuffer) = io.i == length(io.data) && eof(io.io)
-Base.bytesavailable(io::AbstractReadBuffer) = begin
+Base.bytesavailable(io::AbstractReadBuffer) = length(io.data) - io.i
+Base.bytesavailable(io::ReadBuffer) = begin
   if io.i < length(io.data)
     length(io.data) - io.i
   else
@@ -77,11 +87,7 @@ end
 
 Base.seek(io::AbstractReadBuffer, pos::Integer) = begin
   @assert pos >= 0 "Can't seek back that far"
-  while pos >= length(io.data)
-    bytes = eof(io.io) || readavailable(io.io)
-    @assert bytes != true "Can't seek forward that far"
-    append!(io.data, bytes)
-  end
+  while length(io.data) < pos; buffer!(io) end
   io.i = pos
   io
 end
