@@ -14,7 +14,6 @@ Base.read(io::AbstractReadBuffer, ::Type{UInt8}) = begin
 end
 
 pull!(io::AbstractReadBuffer) = begin
-  @assert !eof(io.io) "Attempted to read from an empty IO"
   bytes = pull(io)
   if ismarked(io) || io.i < length(io.data)
     append!(io.data, bytes)
@@ -45,7 +44,7 @@ Base.readavailable(io::AbstractReadBuffer) = begin
     io.i = length(io.data)
     bytes
   else
-    readavailable(io.io)
+    pull(io)
   end
 end
 
