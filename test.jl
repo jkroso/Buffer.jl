@@ -1,4 +1,4 @@
-@use "github.com/jkroso/Rutherford.jl/test" @test testset
+using Test
 @use "." Buffer pipe
 
 macro blocks(e)
@@ -9,7 +9,7 @@ macro blocks(e)
   end
 end
 
-testset("Buffer") do
+@testset "Buffer" begin
   a = Buffer()
   write(a, "a")
   @test read(a, Char) == 'a'
@@ -17,7 +17,7 @@ testset("Buffer") do
   @blocks eof(a)
 end
 
-testset("eof when written to then closed") do
+@testset "eof when written to then closed" begin
   a = Buffer()
   t = @async eof(a)
   sleep(0)
@@ -31,7 +31,7 @@ testset("eof when written to then closed") do
   @test eof(a) == true
 end
 
-testset("eof when closed immediatly after") do
+@testset "eof when closed immediatly after" begin
   a = Buffer()
   t = @async eof(a)
   sleep(0)
@@ -40,7 +40,7 @@ testset("eof when closed immediatly after") do
   @test t.result == true
 end
 
-testset("marks") do
+@testset "marks" begin
   a = Buffer()
   write(a, ('a':'z')...)
   @test read(a, Char) == 'a'
@@ -62,7 +62,7 @@ testset("marks") do
   @test read(a) == UInt8[('2':'9')...]
 end
 
-testset("pipe") do
+@testset "pipe" begin
   c=Buffer(UInt8['c'])
   b=Buffer(UInt8['b'])
   a=Buffer(UInt8['a'])
@@ -73,7 +73,7 @@ end
 
 @use "./ReadBuffer.jl" ReadBuffer
 
-testset("ReadBuffer") do
+@testset "ReadBuffer" begin
   input = PipeBuffer()
   write(input, "abcdefg")
   rb = ReadBuffer(input)

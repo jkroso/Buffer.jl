@@ -1,17 +1,17 @@
-@use "github.com/jkroso/Prospects.jl" @abstract @mutable
+@use "github.com/jkroso/Prospects.jl" @def
 
-@abstract struct AbstractBuffer <: IO
+@def abstract struct AbstractBuffer <: IO
   i::Int=0
   mark::Int=-1
   data::Vector{UInt8}=UInt8[]
 end
 
-@abstract struct AsyncBuffer <: AbstractBuffer
+@def abstract struct AsyncBuffer <: AbstractBuffer
   open::Bool=true
   onwrite::Condition=Condition()
 end
 
-@mutable Buffer <: AsyncBuffer
+@def mutable struct Buffer <: AsyncBuffer end
 
 Buffer(buf::Vector{UInt8}) = Buffer(true, Condition(), 0, -1, buf)
 

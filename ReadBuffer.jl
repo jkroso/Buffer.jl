@@ -1,11 +1,11 @@
-@use "." AbstractBuffer @abstract @mutable
+@use "." AbstractBuffer @def
 
-@abstract struct AbstractReadBuffer <: AbstractBuffer
+@def abstract struct AbstractReadBuffer <: AbstractBuffer
   io::IO
 end
 
 "An wrapper that adds byte IO to any IO type"
-@mutable ReadBuffer <: AbstractReadBuffer
+@def mutable struct ReadBuffer <: AbstractReadBuffer end
 
 Base.write(io::AbstractReadBuffer, b::UInt8) = write(io.io, b)
 Base.read(io::AbstractReadBuffer, ::Type{UInt8}) = begin
