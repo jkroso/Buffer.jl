@@ -74,6 +74,7 @@ Base.isopen(io::AbstractReadBuffer) = isopen(io.io)
 Base.isreadable(io::AbstractReadBuffer) = isreadable(io.io)
 Base.iswritable(io::AbstractReadBuffer) = iswritable(io.io)
 Base.close(io::AbstractReadBuffer) = close(io.io)
+Base.flush(io::AbstractReadBuffer) = flush(io.io)
 Base.eof(io::AbstractReadBuffer) = io.i == length(io.data) && eof(io.io)
 Base.bytesavailable(io::AbstractReadBuffer) = length(io.data) - io.i
 Base.bytesavailable(io::ReadBuffer) = begin
