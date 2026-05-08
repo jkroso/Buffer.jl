@@ -7,6 +7,8 @@ end
 "An wrapper that adds byte IO to any IO type"
 @def mutable struct ReadBuffer <: AbstractReadBuffer end
 
+ReadBuffer(io::IO) = ReadBuffer(io=io)
+
 Base.write(io::AbstractReadBuffer, b::UInt8) = write(io.io, b)
 Base.read(io::AbstractReadBuffer, ::Type{UInt8}) = begin
   io.i < length(io.data) || pull!(io)
